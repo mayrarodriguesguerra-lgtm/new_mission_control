@@ -91,6 +91,7 @@ input[type=password]::placeholder{color:var(--mu)}
 .hdr-right{display:flex;align-items:center;gap:8px;margin-left:auto}
 .synced{font-family:var(--m);font-size:10px;color:var(--mu);padding:3px 7px;
   background:var(--s2);border-radius:5px;border:1px solid var(--b1);white-space:nowrap}
+.mn-link:hover{opacity:1!important;color:#f6571a!important}
 .ibtn{width:30px;height:30px;background:var(--s2);border:1px solid var(--b2);border-radius:7px;
   display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--tx2);transition:all .15s}
 .ibtn:hover{border-color:var(--blue);color:var(--blue)}
@@ -724,6 +725,8 @@ const isClosed = s => {
 
 // ═══ STATE ═══
 let TOK='', ME=null, ALL=[], NOTES={}, CMAP={}, SMETA={};
+const COLORS = ['#4f8ef7','#22d3c8','#f59e0b','#f16565','#34d399','#a78bfa',
+                '#fb923c','#38bdf8','#f472b6','#84cc16','#e879f9','#67e8f9'];
 let FS='all', FB=null, FQ='', LSYNC=null;
 let FBOARD='', FSTATUS='', FDATE_FROM='', FDATE_TO='';
 
@@ -974,7 +977,7 @@ async function fetchAll() {
             .map(([id,label]) => ({
               id,
               label: String(label),
-              color: clrs[id]?.color||'#6b7280',
+              color: (typeof clrs[id]==='string') ? clrs[id] : (clrs[id]?.color||'#6b7280'),
               isDone: isClosed(String(label))
             }))
             .filter(lb => lb.label.trim() !== ''); // skip blank labels
@@ -1077,6 +1080,7 @@ async function fetchAll() {
             scid: sCol?.id||null,
             dcid: dCol?.id||null,
             role: assignedAs,
+            url: `https://app.monday.com/boards/${board.id}/pulses/${item.id}`,
           });
         }
 
@@ -1294,6 +1298,7 @@ function trow(t) {
         ${t.role==='collab'?'<span class="bdg" style="background:rgba(167,139,250,.15);color:var(--pur);font-size:9px">collab</span>':''}
         <span class="btag">${x(t.src)}</span>
         <span class="${dc}">${dt}</span>
+        ${t.url?`<a href="${t.url}" target="_blank" rel="noopener" class="mn-link" title="Open in Monday" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;padding:3px;border-radius:5px;color:var(--mu);opacity:.6"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`:''}
         <button class="nbtn${hn?' has':''}" title="${hn?'Edit note':'Add note'}" onclick="togN('${t.id}')">${noteIco}</button>
       </div>
     </div>
@@ -1378,6 +1383,17 @@ async function fetchStatusMeta(bid) {
       return SMETA[key];
     }
   } catch(e) { console.warn('[MC] fetchStatusMeta error:', e.message); }
+
+  // Subitem fallback: find a parent board task with the same base name
+  const subTask = ALL.find(t => String(t.bid) === key);
+  if(subTask && subTask.isSub) {
+    const parentSrc = subTask.src.replace(' (subitem)','').trim();
+    const parentTask = ALL.find(t => t.src === parentSrc && !t.isSub);
+    if(parentTask && SMETA[String(parentTask.bid)]) {
+      SMETA[key] = SMETA[String(parentTask.bid)];
+      return SMETA[key];
+    }
+  }
   return null;
 }
 
@@ -1600,7 +1616,7 @@ function openEdit(taskId) {
           const lbls = settings.labels||{};
           const clrs = settings.labels_colors||{};
           const labels = Object.entries(lbls)
-            .map(([id,label]) => ({ id, label:String(label), color:clrs[id]?.color||'#6b7280', isDone:isClosed(String(label)) }))
+            .map(([id,label]) => { const clr=clrs[id]; return { id, label:String(label), color:(typeof clr==='string')?clr:(clr?.color||'#6b7280'), isDone:isClosed(String(label)) }; })
             .filter(lb => lb.label.trim() !== '');
           if(labels.length) SMETA[t.bid] = { colId: sCol.id, labels };
         }
