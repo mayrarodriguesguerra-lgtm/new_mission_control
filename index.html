@@ -768,8 +768,14 @@ async function launch() {
   document.getElementById('lbtn').disabled = true;
   document.getElementById('serr').style.display = 'none';
   try {
-    const d = await api('query{ me{ id name email } }');
+    const d = await api('query{ me{ id name email account{ slug id } } }');
+  // Also fetch main workspace ID — Monday main workspace has kind = "main"
+  const wkData = await api('query{ workspaces{ id name kind } }').catch(() => null);
+  const mainWk = wkData?.workspaces?.find(w => w.kind === 'main') || wkData?.workspaces?.[0];
+  window._mainWorkspaceId = mainWk?.id ? String(mainWk.id) : null;
+  console.log('Main workspace:', mainWk?.name, window._mainWorkspaceId);
     ME = d?.me;
+    
     if(!ME?.id) throw new Error('Token not recognised — please check and try again.');
     saveTok(tok);
   } catch(e) {
@@ -823,6 +829,7 @@ async function fetchAll() {
     api(`query{
       boards(limit:500){
         id name updated_at
+        workspace{ id }
         groups{ id title }
         columns{ id title type settings_str }
       }
@@ -830,6 +837,7 @@ async function fetchAll() {
     api(`query{
       boards(limit:500, board_kind:sub_items_board){
         id name updated_at
+        workspace{ id }
         groups{ id title }
         columns{ id title type settings_str }
       }
@@ -837,8 +845,14 @@ async function fetchAll() {
   ]);
 
   const seenIds = new Set();
+  const mwId = window._mainWorkspaceId;
   const allB = [...(bd1?.boards||[]), ...(bd2?.boards||[])].filter(b => {
     if(seenIds.has(b.id)) return false;
+    // Filter: only boards in main workspace (workspace is null = main workspace, or matches mwId)
+    if(mwId) {
+      const bwId = b.workspace?.id ? String(b.workspace.id) : null;
+      if(bwId && bwId !== mwId) return false; // skip boards in other workspaces
+    }
     seenIds.add(b.id); return true;
   });
 
@@ -1080,7 +1094,7 @@ async function fetchAll() {
             scid: sCol?.id||null,
             dcid: dCol?.id||null,
             role: assignedAs,
-            url: `https://app.monday.com/boards/${board.id}/pulses/${item.id}`,
+            url: `https://hillandco-company.monday.com/boards/${board.id}/pulses/${item.id}`,
           });
         }
 
